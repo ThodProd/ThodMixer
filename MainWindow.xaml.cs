@@ -994,8 +994,8 @@ namespace AudioMixerApp
                     {
                         var buffer = new BufferedWaveProvider(Strip.Capture?.WaveFormat ?? new WaveFormat(44100, 2))
                         {
-                            DiscardOnBufferOverflow = true,
-                            BufferDuration = TimeSpan.FromSeconds(5)  
+                            BufferDuration = TimeSpan.FromMilliseconds(60),
+                            DiscardOnBufferOverflow = false
                         };
                         Strip.RoutedBuffers[Bus] = buffer;
                     }

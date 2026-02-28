@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:AudioMixerApp"
         Title="ThodMixer"
         Height="820"
-        Width="1545"
+        Width="1560"
         WindowStartupLocation="CenterScreen"
         Background="#F8F9FA"
         Icon="Resources/app.ico">
@@ -377,10 +377,8 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- НОВАЯ НИЖНЯЯ ПАНЕЛЬ — кнопки плеера по центру внизу -->
         <!-- ===== НИЖНЯЯ ПАНЕЛЬ ПЛЕЕРА ===== -->
-        <!-- ===== НИЖНЯЯ ПАНЕЛЬ ПЛЕЕРА (минималистичная) ===== -->
-        <!-- ===== НИЖНЯЯ ПАНЕЛЬ ПЛЕЕРА — компактная, не обрезается ===== -->
+
         <Border Grid.Row="3"
         Margin="16,0,16,20"              
         Padding="7"
