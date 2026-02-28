@@ -1,0 +1,469 @@
+﻿<Window x:Class="AudioMixerApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AudioMixerApp"
+        Title="ThodMixer"
+        Height="820"
+        Width="1545"
+        WindowStartupLocation="CenterScreen"
+        Background="#F8F9FA"
+        Icon="Resources/app.ico">
+
+    <Window.Resources>
+        <local:FirstStripVisibilityConverter x:Key="FirstStripVisibilityConverter"/>
+        <local:MasterBusVisibilityConverter x:Key="MasterBusVisibilityConverter"/>
+        <local:VolumeToPercentConverter x:Key="VolumeToPercentConverter"/>
+
+        <Style x:Key="MediaButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Margin" Value="5,0"/>
+            <Setter Property="FontSize" Value="25"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Background" Value="#BBDEFB"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="80"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===== БРЕНД ПАНЕЛЬ ===== -->
+        <Border Background="#2C3E50" Padding="10">
+            <DockPanel>
+
+                <TextBlock Text="🎛 ThodMixer"
+                           Foreground="White"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           DockPanel.Dock="Left"/>
+
+                <StackPanel Orientation="Horizontal"
+                            DockPanel.Dock="Right"
+                            VerticalAlignment="Center">
+
+                    <TextBlock Text="ThodProd — Создатель"
+                               Foreground="White"
+                               Margin="0,0,20,0"/>
+
+                    <TextBlock Foreground="White">
+                        <Hyperlink NavigateUri="https://github.com/ThodProd"
+                                   RequestNavigate="Hyperlink_RequestNavigate">
+                            GitHub
+                        </Hyperlink>
+                    </TextBlock>
+
+                    <TextBlock Text="  |  " Foreground="White"/>
+
+                    <TextBlock Foreground="White">
+                        <Hyperlink NavigateUri="mailto:thodprod@gmail.com"
+                                   RequestNavigate="Hyperlink_RequestNavigate">
+                            thodprod@gmail.com
+                        </Hyperlink>
+                    </TextBlock>
+
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ===== ТВОЯ ОРИГИНАЛЬНАЯ ВЕРХНЯЯ ПАНЕЛЬ ===== -->
+        <Border Grid.Row="1" Margin="10" Padding="12" Background="#E9ECEF" CornerRadius="6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="MIDI устройство:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <ComboBox x:Name="MidiCombo" Width="250" Margin="0,10,0,10" SelectionChanged="MidiCombo_SelectionChanged"/>
+                <Button Content="MIDI маппинг" Margin="5,0" Height="30" Padding="15,5" Click="MapMidi_Click"/>
+                <Button Content="+ Дорожка" Margin="30,0,0,0" Height="30" Padding="10,5" Click="AddStrip_Click"/>
+                <Button Content="+ Шина" Margin="5,0" Height="30" Padding="10,5" Click="AddBus_Click"/>
+                <Button Content="Restart" Width="83" Height="30" Margin="30,0,0,0" Background="#FFD4E5FF" Click="Restart_Click"/>
+                <Button Content="🔒 Заблокировать"
+                        x:Name="btnLock"
+                        Margin="30,0,0,0"
+                        Height="30"
+                        Padding="15,5"
+                        Click="LockScreen_Click"/>
+                <Button Content="Автозапуск"
+                        x:Name="btnAutoStart"
+                        Margin="5,0"
+                        Height="30"
+                        Padding="10,5"
+                        Click="ToggleAutoStart_Click"/>
+                <Button Content="Экспорт / Импорт"
+                        x:Name="btnSettings"
+                        Margin="5,0"
+                        Height="30"
+                        Padding="10,5"
+                        Click="SettingsMenu_Click">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Экспортировать настройки" Click="ExportConfig_Click"/>
+                            <MenuItem Header="Импортировать настройки" Click="ImportConfig_Click"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        
+        
+        <!-- ===== ОСНОВНОЙ МИКШЕР ===== -->
+        <ScrollViewer Grid.Row="2"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto">
+            
+            <StackPanel Orientation="Horizontal" Margin="10">
+                <!-- Дорожки (InputStrips) — весь твой код без изменений -->
+                <ItemsControl ItemsSource="{Binding InputStrips}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="180" Margin="6" Padding="8" Background="White" CornerRadius="6" BorderBrush="#DDD" BorderThickness="1">
+                                <StackPanel>
+                                    <!-- Название дорожки + кнопка удаления -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBox Text="{Binding Название}" FontWeight="Bold" Width="110" Margin="0,0,0,0"/>
+                                        <Button Width="20" Height="20" Margin="30,0,0,0" Click="RemoveStrip_Click"
+                                                Visibility="{Binding Название, Converter={StaticResource FirstStripVisibilityConverter}}"
+                                                ToolTip="Удалить дорожку"
+                                                Background="Transparent" BorderBrush="Transparent" Cursor="Hand">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Grid>
+                                                        <Ellipse x:Name="circle" Stroke="Transparent">
+                                                            <Ellipse.Fill>
+                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                    <GradientStop Color="Transparent" Offset="0"/>
+                                                                    <GradientStop Color="Transparent" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Ellipse.Fill>
+                                                        </Ellipse>
+                                                        <TextBlock x:Name="icon" Text="✖" Foreground="#FF4C7ACC"
+                                                                   FontWeight="Bold" FontSize="12"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="circle" Property="Fill">
+                                                                <Setter.Value>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#FF4C7ACC" Offset="0"/>
+                                                                        <GradientStop Color="#BBDEFB" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Setter TargetName="icon" Property="Foreground" Value="#FF003399"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="circle" Property="Fill">
+                                                                <Setter.Value>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#FF4C7ACC" Offset="0"/>
+                                                                        <GradientStop Color="#FF002F80" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Setter TargetName="icon" Property="Foreground" Value="#FFFFFFFF"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </StackPanel>
+                                    <!-- Громкость -->
+                                    <TextBlock Text="Громкость" Margin="0,8,0,4"/>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Slider Value="{Binding Громкость}" Minimum="-60" Maximum="12" Height="120" Orientation="Vertical" Width="30"/>
+                                        <TextBlock Text="{Binding Громкость, Converter={StaticResource VolumeToPercentConverter}}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <!-- Входной уровень -->
+                                    <ProgressBar Value="{Binding ВходУровень}" Maximum="1" Height="8" Margin="0,6"/>
+                                    <!-- Mute / Solo -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6">
+                                        <ToggleButton Content="M" IsChecked="{Binding Mute}" Width="40" Margin="2"/>
+                                        <ToggleButton Content="S" IsChecked="{Binding Solo}" Width="40" Margin="2"/>
+                                    </StackPanel>
+                                    <!-- Улучшения — весь твой оригинальный код -->
+                                    <Expander Header="Улучшения" IsExpanded="False" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <!-- Подрезатель шума (Gate) -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <CheckBox x:Name="chkGate" Content="Гейт" IsChecked="{Binding GateEnabled, Mode=TwoWay}" Margin="0,4,4,0"/>
+                                                <Button Content="i" Width="18" Height="18" Margin="82,0,0,0" FontSize="10" FontWeight="Bold"
+                                                        Click="ShowGateInfo_Click" ToolTip="Что это и как настроить"/>
+                                            </StackPanel>
+                                            <Expander Header="Параметры" IsExpanded="False" IsEnabled="{Binding GateEnabled}" Margin="0,4,0,8">
+                                                <Grid Margin="10,4,10,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="50"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Порог" FontSize="11" Margin="0,0,0,2"/>
+                                                        <Slider Minimum="-80" Maximum="-10" Value="{Binding GateThresholdDb, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                                PreviewMouseLeftButtonUp="Slider_MouseUp"/>
+                                                        <TextBlock Text="Attack" FontSize="11" Margin="0,8,0,2"/>
+                                                        <Slider Minimum="0.5" Maximum="15" Value="{Binding GateAttackMs, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                                PreviewMouseLeftButtonUp="Slider_MouseUp"/>
+                                                        <TextBlock Text="Hold" FontSize="11" Margin="0,8,0,2"/>
+                                                        <Slider Minimum="5" Maximum="150" Value="{Binding GateHoldMs, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                                PreviewMouseLeftButtonUp="Slider_MouseUp"/>
+                                                        <TextBlock Text="Release" FontSize="11" Margin="0,8,0,2"/>
+                                                        <Slider Minimum="30" Maximum="600" Value="{Binding GateReleaseMs, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                                PreviewMouseLeftButtonUp="Slider_MouseUp"/>
+                                                        <TextBlock Text="Hysteresis" FontSize="11" Margin="0,8,0,2"/>
+                                                        <Slider Minimum="2" Maximum="15" Value="{Binding GateHysteresisDb, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                                PreviewMouseLeftButtonUp="Slider_MouseUp"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                                        <TextBox Text="{Binding GateThresholdDb, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
+                                                                 VerticalAlignment="Top" TextAlignment="Right"/>
+                                                        <TextBox Text="{Binding GateAttackMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
+                                                                 Margin="0,32,0,0" VerticalAlignment="Top" TextAlignment="Right"/>
+                                                        <TextBox Text="{Binding GateHoldMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F0}"
+                                                                 Margin="0,32,0,0" VerticalAlignment="Top" TextAlignment="Right"/>
+                                                        <TextBox Text="{Binding GateReleaseMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F0}"
+                                                                 Margin="0,32,0,0" VerticalAlignment="Top" TextAlignment="Right"/>
+                                                        <TextBox Text="{Binding GateHysteresisDb, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
+                                                                 Margin="0,32,0,0" VerticalAlignment="Top" TextAlignment="Right"/>
+                                                    </StackPanel>
+                                                    
+                                                </Grid>
+                                            </Expander>
+                                            <!-- Компрессор -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <CheckBox x:Name="chkCompressor" Content="Компрессор" IsChecked="{Binding CompressorEnabled, Mode=TwoWay}" Margin="0,8,4,0"/>
+                                                <Button Content="i" Width="18" Height="18" Margin="38,8,0,0" FontSize="10" FontWeight="Bold"
+                                                        Click="ShowCompressorInfo_Click" ToolTip="Что это и как настроить"/>
+                                            </StackPanel>
+                                            <Expander Header="Параметры компрессора" IsExpanded="False" IsEnabled="{Binding CompressorEnabled}" Margin="0,4,0,8">
+                                                <Grid Margin="10,4,10,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="50"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Порог" FontSize="11" Margin="0,0,0,2"/>
+                                                        <Slider Minimum="-60" Maximum="-6" Value="{Binding CompressorThresholdDb, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                                PreviewMouseLeftButtonUp="Slider_MouseUp"/>
+                                                        <TextBlock Text="Соотношение" FontSize="11" Margin="0,8,0,2"/>
+                                                        <Slider Minimum="1" Maximum="20" Value="{Binding CompressorRatio, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                                PreviewMouseLeftButtonUp="Slider_MouseUp"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                                        <TextBox Text="{Binding CompressorThresholdDb, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
+                                                                 VerticalAlignment="Top" TextAlignment="Right"/>
+                                                        <TextBox Text="{Binding CompressorRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
+                                                                 Margin="0,32,0,0" VerticalAlignment="Top" TextAlignment="Right"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Expander>
+                                        </StackPanel>
+                                    </Expander>
+                                    <!-- Вывод на шины -->
+                                    <TextBlock Text="Вывод на колонки:" Margin="0,8,0,4" FontSize="12"/>
+                                    <WrapPanel Orientation="Horizontal">
+                                        <ItemsControl ItemsSource="{Binding Routings}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                              Content="{Binding Bus.Название}"
+                                                              Margin="0,0,12,4"
+                                                              VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </WrapPanel>
+                                    <!-- Выбор входного устройства -->
+                                    <ComboBox ItemsSource="{Binding ДоступныеВходы}"
+                                              SelectedItem="{Binding ВыбранныйВход}"
+                                              SelectionChanged="InputDeviceChanged"
+                                              Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Шины (Buses) — полностью твой оригинальный код -->
+                <ItemsControl ItemsSource="{Binding Колонки}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="170" Margin="6" Padding="8" Background="#E3F2FD" CornerRadius="6" BorderBrush="#BBDEFB" BorderThickness="1">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBox Text="{Binding Название}" FontWeight="Bold" Width="110" Margin="0,0,4,0"/>
+                                        <Button Width="20" Height="20" Margin="18,0,0,0" Click="RemoveBus_Click"
+                                                Visibility="{Binding Название, Converter={StaticResource MasterBusVisibilityConverter}}"
+                                                ToolTip="Удалить дорожку"
+                                                Background="Transparent" BorderBrush="Transparent" Cursor="Hand">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Grid>
+                                                        <Ellipse x:Name="circle" Stroke="Transparent">
+                                                            <Ellipse.Fill>
+                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                    <GradientStop Color="Transparent" Offset="0"/>
+                                                                    <GradientStop Color="Transparent" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Ellipse.Fill>
+                                                        </Ellipse>
+                                                        <TextBlock x:Name="icon" Text="✖" Foreground="#FF4C7ACC"
+                                                                   FontWeight="Bold" FontSize="12"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="circle" Property="Fill">
+                                                                <Setter.Value>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#FFF5C6C6" Offset="0"/>
+                                                                        <GradientStop Color="#FFEFA0A0" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Setter TargetName="icon" Property="Foreground" Value="#FF800000"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="circle" Property="Fill">
+                                                                <Setter.Value>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#FFE57C7C" Offset="0"/>
+                                                                        <GradientStop Color="#FFB03A3A" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </StackPanel>
+                                    <TextBlock Text="Громкость" Margin="0,8,0,4"/>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Slider Value="{Binding Громкость}" Minimum="-60" Maximum="12" Height="120" Orientation="Vertical" Width="30"/>
+                                        <TextBlock Text="{Binding Громкость, Converter={StaticResource VolumeToPercentConverter}}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <ProgressBar Value="{Binding ВыходУровень}" Maximum="1" Height="8" Margin="0,6"/>
+                                    <ToggleButton Content="Mute" IsChecked="{Binding Mute}" Margin="0,6"/>
+                                    <ComboBox ItemsSource="{Binding ДоступныеВыходы}"
+                                              SelectedItem="{Binding ВыбранныйВыход}"
+                                              SelectionChanged="BusOutputChanged"
+                                              Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- НОВАЯ НИЖНЯЯ ПАНЕЛЬ — кнопки плеера по центру внизу -->
+        <!-- ===== НИЖНЯЯ ПАНЕЛЬ ПЛЕЕРА ===== -->
+        <!-- ===== НИЖНЯЯ ПАНЕЛЬ ПЛЕЕРА (минималистичная) ===== -->
+        <!-- ===== НИЖНЯЯ ПАНЕЛЬ ПЛЕЕРА — компактная, не обрезается ===== -->
+        <Border Grid.Row="3"
+        Margin="16,0,16,20"              
+        Padding="7"
+        Background="#FFFFFF"
+        CornerRadius="10"
+        BorderThickness="1"
+        BorderBrush="#E8ECEF"
+        VerticalAlignment="Bottom"
+        MinHeight="1"
+        MaxHeight="90">
+            <StackPanel Orientation="Horizontal"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+
+                <!-- Previous -->
+                <Button x:Name="btnPrev"
+                Click="PrevTrack_Click"
+                Width="40"
+                Height="40"
+                Margin="0,0,20,0"
+                Background="Transparent"
+                BorderThickness="0"
+                Cursor="Hand"
+                ToolTip="Предыдущий трек">
+                    <Image Source="/Resources/Icons/prev.png"
+                   Width="25"
+                   Height="25"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                </Button>
+
+                <!-- Play/Pause — центральная, чуть крупнее -->
+                <Button x:Name="btnPlayPause"
+                Click="PlayPause_Click"
+                Width="40"
+                Height="40"
+                Margin="0,0,20,0"
+                Background="#3FA9F5"
+                BorderThickness="0"
+                Cursor="Hand"
+                ToolTip="Play / Pause">
+                    <Image Source="/Resources/Icons/play.png"
+                    Width="23"
+                    Height="23"
+                    RenderOptions.BitmapScalingMode="HighQuality"/>
+                    
+                </Button>
+
+                <!-- Next -->
+                <Button x:Name="btnNext"
+                Click="NextTrack_Click"
+                Width="40"
+                Height="40"
+                Background="Transparent"
+                BorderThickness="0"
+                Cursor="Hand"
+                ToolTip="Следующий трек">
+                    <Image Source="/Resources/Icons/next.png"
+                   Width="25"
+                   Height="25"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                </Button>
+            </StackPanel>
+        </Border>
+
+
+        <!-- Оверлей блокировки -->
+
+        <Border x:Name="LockOverlay"
+        Grid.Row="2"                   
+        Grid.Column="0"
+        Grid.ColumnSpan="1"
+        Visibility="Collapsed"
+        Background="#40000000"
+
+            IsHitTestVisible="True">
+            <TextBlock Text="Заблокировано"
+               FontSize="72"
+               FontWeight="Light"
+               Opacity="0.28"
+               Foreground="White"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               TextAlignment="Center"/>
+        </Border>
+    </Grid>
+</Window>

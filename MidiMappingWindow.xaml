@@ -1,0 +1,59 @@
+﻿<Window x:Class="AudioMixerApp.MidiMappingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AudioMixerApp"
+        Title="MIDI Назначения" Height="620" Width="880"
+        WindowStartupLocation="CenterOwner" Background="#F5F6F5">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{Binding LearnStatus}" 
+           FontSize="16" FontWeight="SemiBold" Margin="0,0,0,16"/>
+
+        <ListView Grid.Row="1" ItemsSource="{Binding Assignments}" 
+                  VirtualizingStackPanel.IsVirtualizing="True"
+                  VirtualizingStackPanel.VirtualizationMode="Recycling">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Объект" Width="220" DisplayMemberBinding="{Binding TargetName}"/>
+                    <GridViewColumn Header="Параметр" Width="180" DisplayMemberBinding="{Binding Parameter}"/>
+                    <GridViewColumn Header="Номер" Width="90" DisplayMemberBinding="{Binding DisplayNumber}"/>
+                    <GridViewColumn Header="LED" Width="80">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding LedFeedback, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+          HorizontalAlignment="Center"/>
+
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Действия" Width="160">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Content="Назначить" Margin="0,0,6,0" Padding="10,4"
+                                            Click="BtnLearn_Click" Tag="{Binding}"/>
+                                    <Button Content="Сброс" Padding="10,4"
+                                            Click="BtnReset_Click" Tag="{Binding}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Сохранить"
+        Width="140"
+        Padding="20,10"
+        Click="BtnSave_Click"/>
+
+        </StackPanel>
+    </Grid>
+</Window>
