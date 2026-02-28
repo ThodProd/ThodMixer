@@ -994,7 +994,7 @@ namespace AudioMixerApp
                     {
                         var buffer = new BufferedWaveProvider(Strip.Capture?.WaveFormat ?? new WaveFormat(44100, 2))
                         {
-                            BufferDuration = TimeSpan.FromMilliseconds(60),     // 60–120 мс — комфортный диапазон
+                            BufferDuration = TimeSpan.FromMilliseconds(100),     // 60–120 мс — комфортный диапазон
                             DiscardOnBufferOverflow = true,                       
                             //ReadFully = false
                         };
