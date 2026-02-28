@@ -994,8 +994,9 @@ namespace AudioMixerApp
                     {
                         var buffer = new BufferedWaveProvider(Strip.Capture?.WaveFormat ?? new WaveFormat(44100, 2))
                         {
-                            DiscardOnBufferOverflow = true,
-                            BufferDuration = TimeSpan.FromSeconds(5)  
+                            BufferDuration = TimeSpan.FromMilliseconds(60),     // 60–120 мс — комфортный диапазон
+                            DiscardOnBufferOverflow = true,                       
+                            //ReadFully = false
                         };
                         Strip.RoutedBuffers[Bus] = buffer;
                     }
@@ -1715,10 +1716,10 @@ namespace AudioMixerApp
                     var buffer = kvp.Value;
 
                     // Очистка, если буфер почти полон (оставляем запас 20%)
-                    if (buffer.BufferedBytes > buffer.BufferLength * 0.8)
-                    {
-                        buffer.ClearBuffer();
-                    }
+                    //if (buffer.BufferedBytes > buffer.BufferLength * 0.92)
+                    //{
+                    //    buffer.ClearBuffer();         
+                    //}
 
                     buffer.AddSamples(scaledBuffer, 0, e.BytesRecorded);
                 }
