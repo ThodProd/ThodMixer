@@ -35,6 +35,7 @@ namespace AudioMixerApp
         private readonly AudioEngine _engine = new();
         private string? SelectedMidiDevice;
         private bool _isLocked = false;
+        private bool _reallyExit = false;
         public MainWindow()
         {
             InitializeComponent();
@@ -95,24 +96,21 @@ namespace AudioMixerApp
 
             if (WindowState == WindowState.Minimized)
             {
-                Hide();
+                Hide(); // сворачиваем в трей
             }
         }
 
+        // Обработчик закрытия окна (крестик) — теперь реальное закрытие
         protected override void OnClosing(CancelEventArgs e)
         {
-            if (WindowState != WindowState.Minimized)
-            {
-                e.Cancel = true;
-                WindowState = WindowState.Minimized;
-                return;
-            }
-
-            _engine.ResetAllLeds();
-            _engine.SetMidiDevice(null);
-            SaveConfig();
-
+            // Ничего не отменяем — крестик закрывает приложение
             base.OnClosing(e);
+        }
+
+        // Метод для выхода через трей
+        public void ExitApplication()
+        {
+            Close(); // вызовет OnClosing и закроет окно
         }
 
         private void Restart_Click(object sender, RoutedEventArgs e)

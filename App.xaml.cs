@@ -1,5 +1,6 @@
-﻿using System.Windows;
+﻿using AudioMixerApp;
 using Hardcodet.Wpf.TaskbarNotification;
+using System.Windows;
 
 namespace Midi
 {
@@ -11,20 +12,20 @@ namespace Midi
         {
             base.OnStartup(e);
 
-            // Получаем иконку из App.xaml
             _trayIcon = (TaskbarIcon)FindResource("TrayIcon");
+
+            // Показываем окно при старте
+            Current.MainWindow?.Show();
         }
 
         private void Tray_Open(object sender, RoutedEventArgs e)
         {
-            var window = Current.MainWindow;
-
-            if (window == null)
+            if (Current.MainWindow == null)
                 return;
 
-            window.Show();
-            window.WindowState = WindowState.Normal;
-            window.Activate();
+            Current.MainWindow.Show();
+            Current.MainWindow.WindowState = WindowState.Normal;
+            Current.MainWindow.Activate();
         }
 
         private void Tray_Exit(object sender, RoutedEventArgs e)
@@ -32,7 +33,8 @@ namespace Midi
             if (_trayIcon != null)
                 _trayIcon.Dispose();
 
-            Current.Shutdown();
+            if (Current.MainWindow is MainWindow mw)
+                mw.ExitApplication();
         }
 
         protected override void OnExit(ExitEventArgs e)
