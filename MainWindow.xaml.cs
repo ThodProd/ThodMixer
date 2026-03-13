@@ -806,38 +806,73 @@ namespace AudioMixerApp
                 Title = "Выберите файл настроек для импорта"
             };
 
-            if (dlg.ShowDialog() == true)
+            if (dlg.ShowDialog() != true)
+                return;
+
+            var result = MessageBox.Show(
+                $"Вы действительно хотите импортировать настройки из файла:\n\n{Path.GetFileName(dlg.FileName)}\n\nТекущие настройки будут полностью заменены!",
+                "Подтверждение импорта",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            // запоминаем состояние блокировки
+            bool wasLocked = _isLocked;
+
+            try
             {
-                var result = MessageBox.Show(
-                    $"Вы действительно хотите импортировать настройки из файла:\n\n{Path.GetFileName(dlg.FileName)}\n\nТекущие настройки будут полностью заменены!",
-                    "Подтверждение импорта",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
+                // показываем загрузку
+                LockOverlay.Visibility = Visibility.Visible;
+                LockOverlayText.Text = "Загрузка...";
+                Dispatcher.Invoke(() => { }, DispatcherPriority.Background);
 
-                if (result != MessageBoxResult.Yes)
-                    return;
+                // импорт
+                LoadConfigFrom(dlg.FileName);
 
-                try
+                // сохраняем
+                SaveConfig();
+
+                UpdateAutoStartButton();
+
+                // восстанавливаем состояние блокировки
+                if (wasLocked)
                 {
-                    LoadConfigFrom(dlg.FileName);
-
-                    // Сохраняем импортированное в основной config.json
-                    SaveConfig();
-
-                    UpdateAutoStartButton();
-
-                    MessageBox.Show("Настройки успешно импортированы и применены!",
-                                    "Успех",
-                                    MessageBoxButton.OK,
-                                    MessageBoxImage.Information);
+                    LockOverlay.Visibility = Visibility.Visible;
+                    LockOverlayText.Text = "Заблокировано";
                 }
-                catch (Exception ex)
+                else
                 {
-                    MessageBox.Show($"При импорте произошла ошибка:\n\n{ex.Message}",
-                                    "Ошибка импорта",
-                                    MessageBoxButton.OK,
-                                    MessageBoxImage.Error);
+                    LockOverlay.Visibility = Visibility.Collapsed;
+                    LockOverlayText.Text = "Заблокировано";
                 }
+
+                MessageBox.Show(
+                    "Настройки успешно импортированы и применены!",
+                    "Успех",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                // восстанавливаем состояние блокировки
+                if (wasLocked)
+                {
+                    LockOverlay.Visibility = Visibility.Visible;
+                    LockOverlayText.Text = "Заблокировано";
+                }
+                else
+                {
+                    LockOverlay.Visibility = Visibility.Collapsed;
+                    LockOverlayText.Text = "Заблокировано";
+                }
+
+                MessageBox.Show(
+                    $"При импорте произошла ошибка:\n\n{ex.Message}",
+                    "Ошибка импорта",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -1953,6 +1988,8 @@ namespace AudioMixerApp
 
                 // Применяем gain дорожки
                 float gain = (float)Math.Pow(10, strip.Громкость / 20.0);
+
+
 
                 byte[] scaledBuffer = new byte[e.BytesRecorded];
                 Buffer.BlockCopy(e.Buffer, 0, scaledBuffer, 0, e.BytesRecorded);
