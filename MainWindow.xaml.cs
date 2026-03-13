@@ -22,6 +22,7 @@ using Microsoft.Win32;
 using System.Diagnostics;
 using System.Reflection;
 using System.Windows.Navigation;
+
 using MidiInputDevice = Melanchall.DryWetMidi.Multimedia.InputDevice;
 
 namespace AudioMixerApp
@@ -569,47 +570,119 @@ namespace AudioMixerApp
             LockOverlay.Visibility = _isLocked ? Visibility.Visible : Visibility.Collapsed;
         }
 
+
+
         // ====================== АВТОЗАПУСК ======================
         private void UpdateAutoStartButton()
         {
-            bool inAuto = IsInAutoStart();
-            btnAutoStart.Content = inAuto
+            btnAutoStart.Content = IsInAutoStart()
                 ? "❌ Удалить из автозапуска"
                 : "▶️ Добавить в автозапуск";
         }
-
+          
         private bool IsInAutoStart()
         {
             try
             {
-                using var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
-                return key?.GetValue("ГрокМикшер") != null;
+                string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                string lnkPath = Path.Combine(startupFolder, "ThodMixer.lnk");
+                return File.Exists(lnkPath);
             }
-            catch { return false; }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string? TryGetCurrentExePath()
+        {
+            string? path = Assembly.GetExecutingAssembly().Location;
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) return path;
+
+            try
+            {
+                path = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) return path;
+            }
+            catch { }
+
+            try
+            {
+                path = AppDomain.CurrentDomain.BaseDirectory;
+                string? friendly = AppDomain.CurrentDomain.FriendlyName;
+                if (!string.IsNullOrWhiteSpace(friendly) && friendly.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    string candidate = Path.Combine(path, friendly);
+                    if (File.Exists(candidate)) return candidate;
+                }
+            }
+            catch { }
+
+            return null;
         }
 
         private void ToggleAutoStart_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                using var key = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run");
+                string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                string targetLnk = Path.Combine(startupFolder, "ThodMixer.lnk");
 
                 if (IsInAutoStart())
-                    key.DeleteValue("ГрокМикшер", false);
+                {
+                    File.Delete(targetLnk);
+                }
                 else
                 {
-                    string exePath = Process.GetCurrentProcess().MainModule?.FileName ??
-                                     Assembly.GetExecutingAssembly().Location;
-                    key.SetValue("ГрокМикшер", $"\"{exePath}\"");
+                    string? exePath = TryGetCurrentExePath();
+
+                    if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
+                    {
+                        MessageBox.Show(
+                            "Не удалось определить путь к .exe-файлу.\n\n" +
+                            "Запустите программу двойным кликом (не из Visual Studio),\n" +
+                            "лучше — из опубликованной папки (Publish → Folder).",
+                            "Путь к exe не найден",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    string exeDir = Path.GetDirectoryName(exePath) ?? "";
+
+                    Type? wshType = Type.GetTypeFromProgID("WScript.Shell");
+                    if (wshType == null)
+                    {
+                        MessageBox.Show("Не удалось создать WScript.Shell (компонент отключён?).",
+                            "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
+                    dynamic wsh = Activator.CreateInstance(wshType);
+                    dynamic shortcut = wsh.CreateShortcut(targetLnk);
+
+                    // ← Вот главное исправление: оборачиваем путь в кавычки
+                    shortcut.TargetPath = "\"" + exePath + "\"";
+                    shortcut.WorkingDirectory = exeDir;
+                    shortcut.Description = "ThodMixer";
+                    // shortcut.IconLocation = exePath + ",0";   // если нужна иконка exe
+
+                    shortcut.Save();
+
+                    System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut);
+                    System.Runtime.InteropServices.Marshal.FinalReleaseComObject(wsh);
                 }
 
                 UpdateAutoStartButton();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка автозапуска:\n{ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"Ошибка автозапуска:\n{ex.Message}\n\n{ex.StackTrace?.Split(new[] { '\r', '\n' }, 2)[0] ?? ""}",
+                    "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
 
         // ====================== ЭКСПОРТ / ИМПОРТ ======================
         private void SettingsMenu_Click(object sender, RoutedEventArgs e)
