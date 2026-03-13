@@ -39,20 +39,56 @@ namespace AudioMixerApp
         {
             InitializeComponent();
             DataContext = this;
+
+            // 1. Сначала загружаем конфиг (включая сохранённое имя MIDI-устройства)
             LoadConfig();
+
+            // 2. Сбрасываем LED (на всякий случай, пока MIDI ещё не подключен)
             _engine.ResetAllLeds();
             _engine.UpdateAllLeds();
+
+            // 3. Заполняем комбобокс актуальным списком устройств
             foreach (var dev in MidiInputDevice.GetAll())
                 MidiCombo.Items.Add(dev.Name);
-            if (SelectedMidiDevice != null && MidiCombo.Items.Contains(SelectedMidiDevice))
+
+            // 4. Теперь список заполнен → безопасно выбираем и подключаем сохранённое устройство
+            if (!string.IsNullOrEmpty(SelectedMidiDevice))
             {
-                MidiCombo.SelectedItem = SelectedMidiDevice;
+                if (MidiCombo.Items.Contains(SelectedMidiDevice))
+                {
+                    MidiCombo.SelectedItem = SelectedMidiDevice;
+                    // Подключаем сразу (дублирует логику из SelectionChanged, но надёжнее)
+                    var dev = MidiInputDevice.GetAll().FirstOrDefault(d => d.Name == SelectedMidiDevice);
+                    if (dev != null)
+                    {
+                        try
+                        {
+                            _engine.SetMidiDevice(dev);
+                            _engine.UpdateAllLeds();   // сразу синхронизируем лампочки
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Не удалось подключить MIDI-устройство «{SelectedMidiDevice}» при запуске:\n{ex.Message}",
+                                            "Ошибка MIDI", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            SelectedMidiDevice = null;
+                        }
+                    }
+                }
+                else
+                {
+                    // Устройство из конфига больше не существует → сбрасываем выбор
+                    SelectedMidiDevice = null;
+                    MidiCombo.SelectedIndex = -1;
+                }
             }
+
             var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
             timer.Tick += (_, _) => _engine.UpdateMeters(InputStrips, Шины);
             timer.Start();
+
             UpdateAutoStartButton();
         }
+        
 
         protected override void OnClosing(CancelEventArgs e)
         {
@@ -150,6 +186,47 @@ namespace AudioMixerApp
         private void LoadConfig()
         {
             LoadConfigFrom("config.json");
+        }
+
+        private void SelectAndConnectMidiDevice(string? deviceName)
+        {
+            if (string.IsNullOrEmpty(deviceName))
+            {
+                MidiCombo.SelectedIndex = -1;
+                _engine.SetMidiDevice(null);
+                SelectedMidiDevice = null;
+                return;
+            }
+
+            if (MidiCombo.Items.Contains(deviceName))
+            {
+                MidiCombo.SelectedItem = deviceName;
+            }
+            else
+            {
+                // Устройство пропало из системы
+                MidiCombo.SelectedIndex = -1;
+                SelectedMidiDevice = null;
+                _engine.SetMidiDevice(null);
+                return;
+            }
+
+            var dev = MidiInputDevice.GetAll().FirstOrDefault(d => d.Name == deviceName);
+            if (dev != null)
+            {
+                try
+                {
+                    _engine.SetMidiDevice(dev);
+                    _engine.UpdateAllLeds();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Ошибка подключения MIDI:\n{ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    SelectedMidiDevice = null;
+                    _engine.SetMidiDevice(null);
+                    MidiCombo.SelectedIndex = -1;
+                }
+            }
         }
 
         private void LoadConfigFrom(string filePath)
@@ -250,9 +327,9 @@ namespace AudioMixerApp
 
             // Остальные настройки
             SelectedMidiDevice = config.SelectedMidi;
-            _engine.MidiNotePlayPause = config.MidiNotePlayPause;
-            _engine.MidiNoteNextTrack = config.MidiNoteNextTrack;
-            _engine.MidiNotePrevTrack = config.MidiNotePrevTrack;
+            _engine.LedFeedbackPlayPause = config.LedFeedbackPlayPause;
+            _engine.LedFeedbackNextTrack = config.LedFeedbackNextTrack;
+            _engine.LedFeedbackPrevTrack = config.LedFeedbackPrevTrack;
 
             _isLocked = config.IsLocked;
             btnLock.Content = _isLocked ? "🔓 Разблокировать" : "🔒 Заблокировать";
@@ -271,32 +348,6 @@ namespace AudioMixerApp
                     _engine.StartOutput(bus);
             }
 
-            // MIDI
-            _engine.UpdateAllLeds();
-
-            if (!string.IsNullOrEmpty(SelectedMidiDevice) && MidiCombo.Items.Contains(SelectedMidiDevice))
-            {
-                MidiCombo.SelectedItem = SelectedMidiDevice;
-            }
-            else
-            {
-                SelectedMidiDevice = null;
-                _engine.SetMidiDevice(null);
-            }
-
-            // Если MIDI был указан — подключаем
-            if (!string.IsNullOrEmpty(SelectedMidiDevice))
-            {
-                var dev = MidiInputDevice.GetAll().FirstOrDefault(d => d.Name == SelectedMidiDevice);
-                if (dev != null)
-                {
-                    try
-                    {
-                        _engine.SetMidiDevice(dev);
-                    }
-                    catch { /* тихо глотаем, если не получилось */ }
-                }
-            }
 
             UpdateAutoStartButton();
         }
@@ -376,6 +427,10 @@ namespace AudioMixerApp
                 MidiNoteNextTrack = _engine.MidiNoteNextTrack,
                 MidiNotePrevTrack = _engine.MidiNotePrevTrack,
 
+                LedFeedbackPlayPause = _engine.LedFeedbackPlayPause,
+                LedFeedbackNextTrack = _engine.LedFeedbackNextTrack,
+                LedFeedbackPrevTrack = _engine.LedFeedbackPrevTrack,
+
                 // Новое: Сохраняем состояние блокировки
                 IsLocked = _isLocked
             };
@@ -389,18 +444,23 @@ namespace AudioMixerApp
         }
         private void MidiCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (e.AddedItems.Count == 0) return;
+
             if (MidiCombo.SelectedItem is string name && !string.IsNullOrEmpty(name))
             {
                 SelectedMidiDevice = name;
                 var dev = MidiInputDevice.GetAll().FirstOrDefault(d => d.Name == name);
-                if (dev == null) return;
-                try
+                if (dev != null)
                 {
-                    _engine.SetMidiDevice(dev);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Ошибка при подключении {name}:\n{ex.Message}", "MIDI ошибка");
+                    try
+                    {
+                        _engine.SetMidiDevice(dev);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Ошибка при подключении {name}:\n{ex.Message}", "MIDI ошибка");
+                        SelectedMidiDevice = null;
+                    }
                 }
             }
         }
@@ -762,6 +822,10 @@ namespace AudioMixerApp
         public int MidiNoteNextTrack { get; set; } = -1;
         public int MidiNotePrevTrack { get; set; } = -1;
         public bool IsLocked { get; set; } = false;
+
+        public bool LedFeedbackPlayPause { get; set; } = false;
+        public bool LedFeedbackNextTrack { get; set; } = false;
+        public bool LedFeedbackPrevTrack { get; set; } = false;
     }
     public class StripConfig
     {
@@ -787,6 +851,10 @@ namespace AudioMixerApp
         public double CompressorThresholdDb { get; set; } = -30;
         public double CompressorRatio { get; set; } = 4;
         public double NormalizeTargetLevel { get; set; } = 0.5;
+
+        public bool LedFeedbackPlayPause { get; set; }
+        public bool LedFeedbackNextTrack { get; set; }
+        public bool LedFeedbackPrevTrack { get; set; }
 
     }
     public class BusConfig
@@ -1332,6 +1400,10 @@ namespace AudioMixerApp
         internal readonly List<InputStrip> _inputs = new();
         internal readonly List<Bus> _buses = new();
 
+        public bool LedFeedbackPlayPause { get; set; } = false;
+        public bool LedFeedbackNextTrack { get; set; } = false;
+        public bool LedFeedbackPrevTrack { get; set; } = false;
+
         public MidiAssignment? CurrentLearningAssignment { get; set; }
         public event EventHandler? LearningStateChanged;
         public int MidiNotePlayPause { get; set; } = -1;
@@ -1505,38 +1577,115 @@ namespace AudioMixerApp
 
         private void HandleNoteEvent(NoteEvent note)
         {
-            bool isOn = note is NoteOnEvent onEvent && onEvent.Velocity > 0;
-            if (!isOn) return; // реагируем только на нажатие
+            // Определяем тип события
+            bool isNoteOn = note is NoteOnEvent onEvent && onEvent.Velocity > 0;
+            bool isNoteOff = note is NoteOffEvent || (note is NoteOnEvent on && on.Velocity == 0);
 
+            int nn = note.NoteNumber;
+
+            // ────────────────────────────────────────────────
+            // 1. Глобальные медиа-команды — выполняем только при нажатии
+            // ────────────────────────────────────────────────
+            if (isNoteOn)
+            {
+                if (nn == MidiNotePlayPause)
+                {
+                    SimulatePlayPause();
+                    if (LedFeedbackPlayPause)
+                    {
+                        SendNoteLed(MidiNotePlayPause, true);
+                    }
+                }
+
+                if (nn == MidiNoteNextTrack)
+                {
+                    SimulateNextTrack();
+                    if (LedFeedbackNextTrack)
+                    {
+                        SendNoteLed(MidiNoteNextTrack, true);
+                    }
+                }
+
+                if (nn == MidiNotePrevTrack)
+                {
+                    SimulatePrevTrack();
+                    if (LedFeedbackPrevTrack)
+                    {
+                        SendNoteLed(MidiNotePrevTrack, true);
+                    }
+                }
+            }
+
+            // ────────────────────────────────────────────────
+            // 2. Гасим LED глобальных кнопок при отпускании (если событие пришло)
+            // ────────────────────────────────────────────────
+            if (isNoteOff)
+            {
+                if (nn == MidiNotePlayPause && LedFeedbackPlayPause)
+                    SendNoteLed(MidiNotePlayPause, false);
+
+                if (nn == MidiNoteNextTrack && LedFeedbackNextTrack)
+                    SendNoteLed(MidiNoteNextTrack, false);
+
+                if (nn == MidiNotePrevTrack && LedFeedbackPrevTrack)
+                    SendNoteLed(MidiNotePrevTrack, false);
+            }
+
+            // ────────────────────────────────────────────────
+            // 3. Остальные действия (mute, solo, routing) — только при нажатии
+            // ────────────────────────────────────────────────
+            if (!isNoteOn) return;
+
+            // InputStrips — Mute и Solo
             foreach (var strip in _inputs)
             {
-                if (strip.MidiNoteMute == note.NoteNumber) strip.Mute = !strip.Mute;
-                if (strip.MidiNoteSolo == note.NoteNumber) strip.Solo = !strip.Solo;
+                if (strip.MidiNoteMute == nn)
+                {
+                    strip.Mute = !strip.Mute;
+                    if (strip.SendLedFeedbackMute)
+                    {
+                        SendNoteLed(nn, !strip.Mute);   // горит = включен mute
+                    }
+                }
+
+                if (strip.MidiNoteSolo == nn)
+                {
+                    strip.Solo = !strip.Solo;
+                    if (strip.SendLedFeedbackSolo)
+                    {
+                        SendNoteLed(nn, strip.Solo);
+                    }
+                }
             }
 
+            // Buses — Mute
             foreach (var bus in _buses)
             {
-                if (bus.MidiNoteMute == note.NoteNumber) bus.Mute = !bus.Mute;
+                if (bus.MidiNoteMute == nn)
+                {
+                    bus.Mute = !bus.Mute;
+                    if (bus.SendLedFeedbackMute)
+                    {
+                        SendNoteLed(nn, !bus.Mute);
+                    }
+                }
             }
 
+            // Routings (Send to bus)
             foreach (var strip in _inputs)
             {
                 foreach (var r in strip.Routings)
                 {
-                    if (r.MidiNoteRouting == note.NoteNumber)
+                    if (r.MidiNoteRouting == nn)
+                    {
                         r.Enabled = !r.Enabled;
+                        if (r.SendLedFeedback)
+                        {
+                            SendNoteLed(nn, r.Enabled);
+                        }
+                    }
                 }
             }
-
-            // Глобальные медиа-команды
-            if (note.NoteNumber == MidiNotePlayPause)
-                SimulatePlayPause();
-
-            if (note.NoteNumber == MidiNoteNextTrack)
-                SimulateNextTrack();
-
-            if (note.NoteNumber == MidiNotePrevTrack)
-                SimulatePrevTrack();
         }
 
         private void HandleControlChange(ControlChangeEvent cc)

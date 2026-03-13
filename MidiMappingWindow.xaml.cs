@@ -62,13 +62,22 @@ namespace AudioMixerApp
 
             // Глобальные медиа-команды
             Assignments.Add(new MidiAssignment(null, "Глобально", "Play/Pause", MidiMapType.Note)
-            { Number = _engine.MidiNotePlayPause, LedFeedback = false });
+            {
+                Number = _engine.MidiNotePlayPause,
+                LedFeedback = _engine.LedFeedbackPlayPause   
+            });
 
             Assignments.Add(new MidiAssignment(null, "Глобально", "Next Track", MidiMapType.Note)
-            { Number = _engine.MidiNoteNextTrack, LedFeedback = false });
+            {
+                Number = _engine.MidiNoteNextTrack,
+                LedFeedback = _engine.LedFeedbackNextTrack
+            });
 
             Assignments.Add(new MidiAssignment(null, "Глобально", "Prev Track", MidiMapType.Note)
-            { Number = _engine.MidiNotePrevTrack, LedFeedback = false });
+            {
+                Number = _engine.MidiNotePrevTrack,
+                LedFeedback = _engine.LedFeedbackPrevTrack
+            });
         }
 
         private void Engine_LearningStateChanged(object? sender, EventArgs e)
@@ -150,6 +159,15 @@ namespace AudioMixerApp
 
                     case BusRouting routing:
                         routing.SendLedFeedback = ass.LedFeedback;
+                        break;
+
+                    case null:  // ← глобальные команды
+                        if (ass.Parameter == "Play/Pause")
+                            _engine.LedFeedbackPlayPause = ass.LedFeedback;
+                        else if (ass.Parameter == "Next Track")
+                            _engine.LedFeedbackNextTrack = ass.LedFeedback;
+                        else if (ass.Parameter == "Prev Track")
+                            _engine.LedFeedbackPrevTrack = ass.LedFeedback;
                         break;
                 }
             }
