@@ -104,12 +104,14 @@ namespace AudioMixerApp
         protected override void OnClosing(CancelEventArgs e)
         {
             // Ничего не отменяем — крестик закрывает приложение
+            StopAll();
             base.OnClosing(e);
         }
 
         // Метод для выхода через трей
         public void ExitApplication()
         {
+            StopAll();
             Close(); // вызовет OnClosing и закроет окно
         }
 
@@ -168,24 +170,24 @@ namespace AudioMixerApp
 
         private void StopAll()
         {
-            // Останавливаем все входы
+            // 1. Останавливаем все входы (микрофоны)
             foreach (var strip in InputStrips)
             {
                 if (strip.Capture != null)
                 {
-                    strip.Capture.StopRecording();
+                    try { strip.Capture.StopRecording(); } catch { }
                     strip.Capture.Dispose();
                     strip.Capture = null;
                 }
                 strip.RoutedBuffers.Clear();
             }
 
-            // Останавливаем все выходы
+            // 2. Останавливаем все выходы (динамики/шины)
             foreach (var bus in Шины)
             {
                 if (bus.Output != null)
                 {
-                    bus.Output.Stop();
+                    try { bus.Output.Stop(); } catch { }
                     bus.Output.Dispose();
                     bus.Output = null;
                 }
@@ -194,7 +196,14 @@ namespace AudioMixerApp
                 bus.MeterProvider = null;
             }
 
-            // Отключаем MIDI полностью
+            // 3. ГАСИМ ЛАМПОЧКИ НА MIDI
+            // Сначала отправляем команду сброса всех LED
+            _engine.ResetAllLeds();
+
+            // Даем маленькую задержку, чтобы MIDI успел обработать команды перед отключением
+            System.Threading.Thread.Sleep(50);
+
+            // 4. Отключаем MIDI-устройство полностью
             _engine.SetMidiDevice(null);
         }
 
