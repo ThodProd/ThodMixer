@@ -231,7 +231,7 @@ namespace AudioMixerApp
 
         private void LoadConfigFrom(string filePath)
         {
-            // Если основной config.json пустой или отсутствует → создаём дефолтные настройки
+            // Если файл отсутствует или пустой → дефолтная конфигурация
             if (filePath == "config.json" &&
                 (!File.Exists(filePath) || string.IsNullOrWhiteSpace(File.ReadAllText(filePath))))
             {
@@ -248,24 +248,31 @@ namespace AudioMixerApp
                 }
 
                 SelectedMidiDevice = null;
-                _engine.MidiNotePlayPause = _engine.MidiNoteNextTrack = _engine.MidiNotePrevTrack = -1;
+
+                // ─── Явно сбрасываем глобальные ноты при первом запуске ─────────────
+                _engine.MidiNotePlayPause = -1;
+                _engine.MidiNoteNextTrack = -1;
+                _engine.MidiNotePrevTrack = -1;
+
+                _engine.LedFeedbackPlayPause = false;
+                _engine.LedFeedbackNextTrack = false;
+                _engine.LedFeedbackPrevTrack = false;
+
                 _isLocked = false;
                 SaveConfig();
                 return;
             }
 
-            // Нормальная загрузка / импорт
+            // Нормальная загрузка
             var json = File.ReadAllText(filePath);
             var config = JsonSerializer.Deserialize<Config>(json) ?? new Config();
 
-            // Самое важное — останавливаем ВСЁ перед изменением конфигурации
             StopAll();
 
-            // Очищаем текущие шины и входы
             Шины.Clear(); _engine._buses.Clear();
             InputStrips.Clear(); _engine._inputs.Clear();
 
-            // Загружаем шины
+            // шины ...
             foreach (var bc in config.Buses)
             {
                 var bus = new Bus(bc.Name, _engine)
@@ -281,7 +288,7 @@ namespace AudioMixerApp
                 _engine.AddBus(bus);
             }
 
-            // Загружаем дорожки (входы)
+            // дорожки ...
             foreach (var sc in config.InputStrips)
             {
                 var strip = new InputStrip(sc.Name, _engine)
@@ -325,29 +332,33 @@ namespace AudioMixerApp
                 }
             }
 
-            // Остальные настройки
-            SelectedMidiDevice = config.SelectedMidi;
+            // ─── Самое важное — восстанавливаем глобальные ноты и LED-флаги ───────
+            _engine.MidiNotePlayPause = config.MidiNotePlayPause;
+            _engine.MidiNoteNextTrack = config.MidiNoteNextTrack;
+            _engine.MidiNotePrevTrack = config.MidiNotePrevTrack;
+
             _engine.LedFeedbackPlayPause = config.LedFeedbackPlayPause;
             _engine.LedFeedbackNextTrack = config.LedFeedbackNextTrack;
             _engine.LedFeedbackPrevTrack = config.LedFeedbackPrevTrack;
+
+            SelectedMidiDevice = config.SelectedMidi;
 
             _isLocked = config.IsLocked;
             btnLock.Content = _isLocked ? "🔓 Разблокировать" : "🔒 Заблокировать";
             LockOverlay.Visibility = _isLocked ? Visibility.Visible : Visibility.Collapsed;
 
-            // Запускаем всё заново
+            // Запускаем устройства
             foreach (var strip in InputStrips)
-            {
                 if (!string.IsNullOrEmpty(strip.ВыбранныйВход))
                     _engine.StartInput(strip);
-            }
 
             foreach (var bus in Шины)
-            {
                 if (!string.IsNullOrEmpty(bus.ВыбранныйВыход))
                     _engine.StartOutput(bus);
-            }
 
+            // Синхронизируем LED после загрузки (очень важно!)
+            _engine.ResetAllLeds();
+            _engine.UpdateAllLeds();
 
             UpdateAutoStartButton();
         }
@@ -412,6 +423,7 @@ namespace AudioMixerApp
                         Led = r.SendLedFeedback
                     }).ToList()
                 }).ToList(),
+
                 Buses = Шины.Select(b => new BusConfig
                 {
                     Name = b.Название,
@@ -422,7 +434,10 @@ namespace AudioMixerApp
                     LedMute = b.SendLedFeedbackMute,
                     SelectedOutput = b.ВыбранныйВыход
                 }).ToList(),
+
                 SelectedMidi = SelectedMidiDevice,
+
+                // ─── Вот эти четыре строки должны быть здесь ────────────────────────
                 MidiNotePlayPause = _engine.MidiNotePlayPause,
                 MidiNoteNextTrack = _engine.MidiNoteNextTrack,
                 MidiNotePrevTrack = _engine.MidiNotePrevTrack,
@@ -431,9 +446,9 @@ namespace AudioMixerApp
                 LedFeedbackNextTrack = _engine.LedFeedbackNextTrack,
                 LedFeedbackPrevTrack = _engine.LedFeedbackPrevTrack,
 
-                // Новое: Сохраняем состояние блокировки
                 IsLocked = _isLocked
             };
+
             var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(filePath, json);
         }
