@@ -48,46 +48,34 @@ namespace AudioMixerApp
             _engine.ResetAllLeds();
             _engine.UpdateAllLeds();
 
-            // 3. Заполняем комбобокс актуальным списком устройств
-            foreach (var dev in MidiInputDevice.GetAll())
-                MidiCombo.Items.Add(dev.Name);
-
-            // 4. Теперь список заполнен → безопасно выбираем и подключаем сохранённое устройство
-            if (!string.IsNullOrEmpty(SelectedMidiDevice))
-            {
-                if (MidiCombo.Items.Contains(SelectedMidiDevice))
-                {
-                    MidiCombo.SelectedItem = SelectedMidiDevice;
-                    // Подключаем сразу (дублирует логику из SelectionChanged, но надёжнее)
-                    var dev = MidiInputDevice.GetAll().FirstOrDefault(d => d.Name == SelectedMidiDevice);
-                    if (dev != null)
-                    {
-                        try
-                        {
-                            _engine.SetMidiDevice(dev);
-                            _engine.UpdateAllLeds();   // сразу синхронизируем лампочки
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Не удалось подключить MIDI-устройство «{SelectedMidiDevice}» при запуске:\n{ex.Message}",
-                                            "Ошибка MIDI", MessageBoxButton.OK, MessageBoxImage.Warning);
-                            SelectedMidiDevice = null;
-                        }
-                    }
-                }
-                else
-                {
-                    // Устройство из конфига больше не существует → сбрасываем выбор
-                    SelectedMidiDevice = null;
-                    MidiCombo.SelectedIndex = -1;
-                }
-            }
+            // 3. Обновляем список MIDI-устройств и восстанавливаем подключение
+            RefreshMidiDevices();
 
             var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
             timer.Tick += (_, _) => _engine.UpdateMeters(InputStrips, Шины);
             timer.Start();
 
             UpdateAutoStartButton();
+        }
+
+        private void RefreshMidiDevices()
+        {
+            string? currentSelected = SelectedMidiDevice;
+            MidiCombo.Items.Clear();
+            foreach (var dev in MidiInputDevice.GetAll())
+            {
+                MidiCombo.Items.Add(dev.Name);
+            }
+            if (!string.IsNullOrEmpty(currentSelected) && MidiCombo.Items.Contains(currentSelected))
+            {
+                MidiCombo.SelectedItem = currentSelected;
+            }
+            else
+            {
+                MidiCombo.SelectedIndex = -1;
+                SelectedMidiDevice = null;
+                _engine.SetMidiDevice(null);
+            }
         }
 
         protected override void OnStateChanged(EventArgs e)
@@ -117,9 +105,37 @@ namespace AudioMixerApp
 
         private void Restart_Click(object sender, RoutedEventArgs e)
         {
-            SaveConfig();
-            _engine.ResetAllLeds();
-            ResetEngine();
+            bool wasLocked = _isLocked;
+            try
+            {
+                // Показываем оверлей "Перезапуск..." как при импорте
+                LockOverlay.Visibility = Visibility.Visible;
+                LockOverlayText.Text = "Перезапуск...";
+                Dispatcher.Invoke(() => { }, DispatcherPriority.Background);
+
+                SaveConfig();
+                _engine.ResetAllLeds();
+                LoadConfig(); // Полностью перезагружаем/реинициализируем конфигурацию
+                RefreshMidiDevices(); // Обновляем список MIDI-устройств и переподключаем контроллер
+                _engine.UpdateAllLeds(); // Синхронизируем лампочки
+
+                // Небольшая задержка, чтобы пользователь успел увидеть оверлей
+                System.Threading.Thread.Sleep(200);
+            }
+            finally
+            {
+                // Восстанавливаем состояние блокировки
+                if (wasLocked)
+                {
+                    LockOverlay.Visibility = Visibility.Visible;
+                    LockOverlayText.Text = "Заблокировано";
+                }
+                else
+                {
+                    LockOverlay.Visibility = Visibility.Collapsed;
+                    LockOverlayText.Text = "Заблокировано";
+                }
+            }
         }
 
         private void Slider_MouseUp(object sender, MouseButtonEventArgs e)
@@ -260,13 +276,13 @@ namespace AudioMixerApp
                 (!File.Exists(filePath) || string.IsNullOrWhiteSpace(File.ReadAllText(filePath))))
             {
                 Шины.Clear(); _engine._buses.Clear();
-                var master = new Bus("Мастер", _engine);
+                var master = new Bus("Мастер", _engine) { CanDelete = false };
                 Шины.Add(master); _engine.AddBus(master);
 
                 InputStrips.Clear(); _engine._inputs.Clear();
                 for (int i = 1; i <= 6; i++)
                 {
-                    var strip = new InputStrip($"Дорожка {i}", _engine);
+                    var strip = new InputStrip($"Дорожка {i}", _engine) { CanDelete = (i > 1) };
                     InputStrips.Add(strip);
                     _engine.AddInput(strip);
                 }
@@ -297,6 +313,7 @@ namespace AudioMixerApp
             InputStrips.Clear(); _engine._inputs.Clear();
 
             // шины ...
+            int busIndex = 0;
             foreach (var bc in config.Buses)
             {
                 var bus = new Bus(bc.Name, _engine)
@@ -306,13 +323,16 @@ namespace AudioMixerApp
                     ВыбранныйВыход = bc.SelectedOutput,
                     MidiCcVolume = bc.MidiCcVolume,
                     MidiNoteMute = bc.MidiNoteMute,
-                    SendLedFeedbackMute = bc.LedMute
+                    SendLedFeedbackMute = bc.LedMute,
+                    CanDelete = (busIndex > 0)
                 };
                 Шины.Add(bus);
                 _engine.AddBus(bus);
+                busIndex++;
             }
 
             // дорожки ...
+            int stripIndex = 0;
             foreach (var sc in config.InputStrips)
             {
                 var strip = new InputStrip(sc.Name, _engine)
@@ -335,10 +355,12 @@ namespace AudioMixerApp
                     CompressorEnabled = sc.CompressorEnabled,
                     CompressorThresholdDb = sc.CompressorThresholdDb,
                     CompressorRatio = sc.CompressorRatio,
-                    NormalizeTargetLevel = sc.NormalizeTargetLevel
+                    NormalizeTargetLevel = sc.NormalizeTargetLevel,
+                    CanDelete = (stripIndex > 0)
                 };
                 InputStrips.Add(strip);
                 _engine.AddInput(strip);
+                stripIndex++;
 
                 strip.Routings.Clear();
                 foreach (var rc in sc.Routings)
@@ -393,7 +415,7 @@ namespace AudioMixerApp
         {
             if (sender is Button btn && btn.DataContext is InputStrip strip)
             {
-                if (strip.Название == "Дорожка 1") return;
+                if (!strip.CanDelete) return;
                 InputStrips.Remove(strip);
                 _engine._inputs.Remove(strip);
             }
@@ -403,7 +425,7 @@ namespace AudioMixerApp
         {
             if (sender is Button btn && btn.DataContext is Bus bus)
             {
-                if (bus.Название == "Мастер") return;
+                if (!bus.CanDelete) return;
                 Шины.Remove(bus);
                 _engine._buses.Remove(bus);
                 foreach (var strip in InputStrips)
@@ -494,6 +516,7 @@ namespace AudioMixerApp
                     try
                     {
                         _engine.SetMidiDevice(dev);
+                        SaveConfig();
                     }
                     catch (Exception ex)
                     {
@@ -502,6 +525,11 @@ namespace AudioMixerApp
                     }
                 }
             }
+        }
+
+        private void RefreshMidi_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshMidiDevices();
         }
 
         private void MapMidi_Click(object sender, RoutedEventArgs e)
@@ -954,6 +982,17 @@ namespace AudioMixerApp
         public bool SendLedFeedbackMute { get; set; } = true;
         public bool SendLedFeedbackSolo { get; set; } = true;
         public string Название { get; set; }
+        private bool _canDelete = true;
+        public bool CanDelete
+        {
+            get => _canDelete;
+            set
+            {
+                if (_canDelete == value) return;
+                _canDelete = value;
+                Raise(nameof(CanDelete));
+            }
+        }
         private double _громкость = -12;
         public double Громкость
         {
@@ -1144,6 +1183,17 @@ namespace AudioMixerApp
         private readonly AudioEngine _engine;
         public bool SendLedFeedbackMute { get; set; } = true;
         public string Название { get; set; }
+        private bool _canDelete = true;
+        public bool CanDelete
+        {
+            get => _canDelete;
+            set
+            {
+                if (_canDelete == value) return;
+                _canDelete = value;
+                Raise(nameof(CanDelete));
+            }
+        }
         private double _громкость = 0;
         public double Громкость
         {
@@ -1716,19 +1766,11 @@ namespace AudioMixerApp
                 if (strip.MidiNoteMute == nn)
                 {
                     strip.Mute = !strip.Mute;
-                    if (strip.SendLedFeedbackMute)
-                    {
-                        SendNoteLed(nn, !strip.Mute);   // горит = включен mute
-                    }
                 }
 
                 if (strip.MidiNoteSolo == nn)
                 {
                     strip.Solo = !strip.Solo;
-                    if (strip.SendLedFeedbackSolo)
-                    {
-                        SendNoteLed(nn, strip.Solo);
-                    }
                 }
             }
 
@@ -1738,10 +1780,6 @@ namespace AudioMixerApp
                 if (bus.MidiNoteMute == nn)
                 {
                     bus.Mute = !bus.Mute;
-                    if (bus.SendLedFeedbackMute)
-                    {
-                        SendNoteLed(nn, !bus.Mute);
-                    }
                 }
             }
 
@@ -1753,10 +1791,6 @@ namespace AudioMixerApp
                     if (r.MidiNoteRouting == nn)
                     {
                         r.Enabled = !r.Enabled;
-                        if (r.SendLedFeedback)
-                        {
-                            SendNoteLed(nn, r.Enabled);
-                        }
                     }
                 }
             }

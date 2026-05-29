@@ -78,10 +78,11 @@
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="MIDI устройство:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                 <ComboBox x:Name="MidiCombo" Width="250" Margin="0,10,0,10" SelectionChanged="MidiCombo_SelectionChanged"/>
+                <Button Content="🔄" ToolTip="Обновить список MIDI-устройств" Width="40" Height="30" Margin="5,0" Click="RefreshMidi_Click"/>
                 <Button Content="MIDI маппинг" Margin="5,0" Height="30" Padding="15,5" Click="MapMidi_Click"/>
                 <Button Content="+ Дорожка" Margin="30,0,0,0" Height="30" Padding="10,5" Click="AddStrip_Click"/>
                 <Button Content="+ Шина" Margin="5,0" Height="30" Padding="10,5" Click="AddBus_Click"/>
-                <Button Content="Restart" Width="83" Height="30" Margin="30,0,0,0" Background="#FFD4E5FF" Click="Restart_Click"/>
+                <Button Content="Перезапуск" Width="100" Height="30" Margin="30,0,0,0" Background="#FFD4E5FF" Click="Restart_Click"/>
                 <Button Content="🔒 Заблокировать"
                         x:Name="btnLock"
                         Margin="30,0,0,0"
@@ -133,7 +134,7 @@
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBox Text="{Binding Название}" FontWeight="Bold" Width="110" Margin="0,0,0,0"/>
                                         <Button Width="20" Height="20" Margin="30,0,0,0" Click="RemoveStrip_Click"
-                                                Visibility="{Binding Название, Converter={StaticResource FirstStripVisibilityConverter}}"
+                                                Visibility="{Binding CanDelete, Converter={StaticResource FirstStripVisibilityConverter}}"
                                                 ToolTip="Удалить дорожку"
                                                 Background="Transparent" BorderBrush="Transparent" Cursor="Hand">
                                             <Button.Template>
@@ -313,7 +314,7 @@
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBox Text="{Binding Название}" FontWeight="Bold" Width="110" Margin="0,0,4,0"/>
                                         <Button Width="20" Height="20" Margin="18,0,0,0" Click="RemoveBus_Click"
-                                                Visibility="{Binding Название, Converter={StaticResource MasterBusVisibilityConverter}}"
+                                                Visibility="{Binding CanDelete, Converter={StaticResource MasterBusVisibilityConverter}}"
                                                 ToolTip="Удалить дорожку"
                                                 Background="Transparent" BorderBrush="Transparent" Cursor="Hand">
                                             <Button.Template>

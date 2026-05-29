@@ -9,6 +9,10 @@ namespace AudioMixerApp
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (value is bool canDelete)
+            {
+                return canDelete ? Visibility.Visible : Visibility.Collapsed;
+            }
             return value?.ToString() == "Дорожка 1" ? Visibility.Collapsed : Visibility.Visible;
         }
 
@@ -20,6 +24,10 @@ namespace AudioMixerApp
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (value is bool canDelete)
+            {
+                return canDelete ? Visibility.Visible : Visibility.Collapsed;
+            }
             return value?.ToString() == "Мастер" ? Visibility.Collapsed : Visibility.Visible;
         }
 
