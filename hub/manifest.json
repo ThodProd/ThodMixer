@@ -1,0 +1,1 @@
+{"schemaVersion":1,"hubApi":1,"id":"thodmixer","version":"1.1.0","platform":"win-x64","mode":"standalone","launch":{"executable":"app/ThodMixer.exe","arguments":[]},"permissions":[]}

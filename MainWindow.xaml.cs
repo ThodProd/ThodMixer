@@ -225,7 +225,17 @@ namespace AudioMixerApp
 
         private void LoadConfig()
         {
-            LoadConfigFrom("config.json");
+            LoadConfigFrom(DefaultConfigPath);
+        }
+        private static string DefaultConfigPath
+        {
+            get
+            {
+                var dir=Environment.GetEnvironmentVariable("THODHUB_DATA_DIR");
+                if(string.IsNullOrWhiteSpace(dir)) return "config.json";
+                Directory.CreateDirectory(dir);
+                return Path.Combine(dir,"config.json");
+            }
         }
 
         private void SelectAndConnectMidiDevice(string? deviceName)
@@ -272,7 +282,7 @@ namespace AudioMixerApp
         private void LoadConfigFrom(string filePath)
         {
             // Если файл отсутствует или пустой → дефолтная конфигурация
-            if (filePath == "config.json" &&
+            if (filePath == DefaultConfigPath &&
                 (!File.Exists(filePath) || string.IsNullOrWhiteSpace(File.ReadAllText(filePath))))
             {
                 Шины.Clear(); _engine._buses.Clear();
@@ -501,7 +511,7 @@ namespace AudioMixerApp
 
         public void SaveConfig()
         {
-            SaveConfigTo("config.json");
+            SaveConfigTo(DefaultConfigPath);
         }
         private void MidiCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -702,6 +712,12 @@ namespace AudioMixerApp
         // ====================== АВТОЗАПУСК ======================
         private void UpdateAutoStartButton()
         {
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("THODHUB_DATA_DIR")))
+            {
+                btnAutoStart.IsEnabled = false;
+                btnAutoStart.Content = "Автозапуск в сборке ThodHUB пока недоступен";
+                return;
+            }
             btnAutoStart.Content = IsInAutoStart()
                 ? "❌ Удалить из автозапуска"
                 : "▶️ Добавить в автозапуск";

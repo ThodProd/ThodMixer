@@ -361,3 +361,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+artifacts/
+.venv/
+.env
+*.user
+
+
+.hub-sdk/
